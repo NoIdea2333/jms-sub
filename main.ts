@@ -209,7 +209,7 @@ Deno.serve(async (request: Request) => {
     // Clash 订阅名称：JMS搬瓦工
     headers.set(
       "Content-Disposition",
-      "inline; filename*=UTF-8''JMS%E6%90%AC%E7%93%A6%E5%B7%A5.yaml",
+      "inline; filename*=UTF-8''JMS%E6%90%AC%E7%93%A6%E5%B7%A5",
     );
 
     // 6 小时自动更新
