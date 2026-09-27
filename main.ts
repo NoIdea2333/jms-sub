@@ -154,7 +154,7 @@ Deno.serve(async (request: Request) => {
       rebuildProxyGroups(yaml);
 
 
-    // 添加省流量规则
+    // 国内直连 / 其他全部 JMS
     yaml =
       addRoutingRules(yaml);
 
@@ -614,18 +614,18 @@ function rebuildProxyGroups(
 
 
 // ============================================================
-// 省流量分流规则
+// 国内直连 / 国外代理
 //
-// 局域网        → DIRECT
-// 中国大陆      → DIRECT
+// 局域网 / 私有地址 → DIRECT
+// 中国大陆          → DIRECT
+// 其他所有流量      → JMS
 //
-// Google        → JMS
-// YouTube       → JMS
-// Telegram      → JMS
-// Twitter / X   → JMS
-// Facebook      → JMS
+// JMS 默认：🔄 自动故障切换
 //
-// 其他          → DIRECT
+// 因此：
+// 国内流量 → 不消耗 JMS
+// 国外流量 → JMS
+// 洛杉矶04不可用 → 自动切换其他节点
 // ============================================================
 
 function addRoutingRules(
@@ -658,37 +658,34 @@ function addRoutingRules(
 
 
     // ========================================================
-    // 中国大陆
+    // 中国大陆网站
     // ========================================================
 
     '- "GEOSITE,CN,DIRECT"',
+
+
+    // ========================================================
+    // 中国大陆 IP
+    // ========================================================
 
     '- "GEOIP,CN,DIRECT,no-resolve"',
 
 
     // ========================================================
-    // 明确需要 JMS 的国外服务
-    // ========================================================
-
-    '- "GEOSITE,google,JMS"',
-
-    '- "GEOSITE,youtube,JMS"',
-
-    '- "GEOSITE,telegram,JMS"',
-
-    '- "GEOSITE,twitter,JMS"',
-
-    '- "GEOSITE,facebook,JMS"',
-
-
-    // ========================================================
-    // 其他网站
+    // 其余所有流量
     //
-    // 默认 DIRECT
-    // 最大程度减少 JMS 流量
+    // ChatGPT / OpenAI
+    // TikTok
+    // Google
+    // YouTube
+    // Instagram
+    // Facebook
+    // X / Twitter
+    // Telegram
+    // 以及其他未命中中国大陆规则的流量
     // ========================================================
 
-    '- "MATCH,DIRECT"',
+    '- "MATCH,JMS"',
   ];
 
 
