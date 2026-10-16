@@ -493,27 +493,27 @@ function addExtraVmessNode(yaml: string, vmessUrl?: string): string {
   // JSON 字符串也符合 YAML 双引号字符串语法
   const q = (value: string) => JSON.stringify(value);
   const extra = [
-    `- name: ${q("🇺🇸 美国备用 VMess")}`,
-    "  type: vmess",
-    `  server: ${q(server)}`,
-    `  port: ${port}`,
-    `  uuid: ${q(uuid)}`,
-    `  alterId: ${alterId}`,
-    `  cipher: ${q(String(config.scy ?? "auto"))}`,
-    `  tls: ${tls === "tls"}`,
-    "  udp: true",
+    `  - name: ${q("🇺🇸 美国备用 VMess")}`,
+    "    type: vmess",
+    `    server: ${q(server)}`,
+    `    port: ${port}`,
+    `    uuid: ${q(uuid)}`,
+    `    alterId: ${alterId}`,
+    `    cipher: ${q(String(config.scy ?? "auto"))}`,
+    `    tls: ${tls === "tls"}`,
+    "    udp: true",
   ];
   if (tls === "tls" && config.sni) {
-    extra.push(`  servername: ${q(String(config.sni))}`);
+    extra.push(`    servername: ${q(String(config.sni))}`);
   }
   if (network === "ws") {
-    extra.push('  network: ws');
+    extra.push('    network: ws');
     const wsPath = String(config.path ?? "/");
-    extra.push('  ws-opts:');
-    extra.push(`    path: ${q(wsPath)}`);
+    extra.push('    ws-opts:');
+    extra.push(`      path: ${q(wsPath)}`);
     if (config.host) {
-      extra.push('    headers:');
-      extra.push(`      Host: ${q(String(config.host))}`);
+      extra.push('      headers:');
+      extra.push(`        Host: ${q(String(config.host))}`);
     }
   }
   return [...lines.slice(0, end), ...extra, "", ...lines.slice(end)].join("\n");
