@@ -147,6 +147,9 @@ Deno.serve(async (request: Request) => {
       renameJmsNodes(yaml);
 
 
+    // 添加独立 VMess 节点（从 Deno Secret 读取）
+    yaml = addExtraVmessNode(yaml, Deno.env.get("EXTRA_VMESS_URL"));
+
     // 重建代理组
     // 删除官方 JMS Auto
     // 添加自动故障切换
@@ -437,6 +440,87 @@ function renameJmsNodes(
 
 
 // ============================================================
+// 将独立 VMess 节点加入官方 proxies 列表
+// 从 Deno Secret EXTRA_VMESS_URL 读取完整 vmess:// 链接
+// ============================================================
+function addExtraVmessNode(yaml: string, vmessUrl?: string): string {
+  if (!vmessUrl?.trim()) {
+    throw new Error("EXTRA_VMESS_URL is not configured");
+  }
+
+  const raw = vmessUrl.trim();
+  if (!raw.startsWith("vmess://")) {
+    throw new Error("EXTRA_VMESS_URL must start with vmess://");
+  }
+
+  // VMess 分享链接使用 Base64 编码的 JSON
+  const encoded = raw.slice(8).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+  let config: Record<string, unknown>;
+  try {
+    const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+    config = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error("EXTRA_VMESS_URL is not valid Base64 JSON");
+  }
+
+  const server = String(config.add ?? "");
+  const port = Number(config.port);
+  const uuid = String(config.id ?? "");
+  const alterId = Number(config.aid ?? 0);
+  const network = String(config.net ?? "tcp");
+  const tls = String(config.tls ?? "").toLowerCase();
+  if (!server || !Number.isInteger(port) || port < 1 || port > 65535 ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid) ||
+      !Number.isInteger(alterId) || alterId < 0) {
+    throw new Error("EXTRA_VMESS_URL contains invalid server, port, id or aid");
+  }
+  if (network !== "tcp" && network !== "ws") {
+    throw new Error("Only TCP and WS VMess links are supported");
+  }
+
+  const lines = yaml.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^proxies:\s*$/.test(line));
+  if (start === -1) throw new Error("Upstream YAML has no proxies section");
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^[A-Za-z0-9_-]+:\s*(?:.*)?$/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+
+  // JSON 字符串也符合 YAML 双引号字符串语法
+  const q = (value: string) => JSON.stringify(value);
+  const extra = [
+    `- name: ${q("🇺🇸 美国备用 VMess")}`,
+    "  type: vmess",
+    `  server: ${q(server)}`,
+    `  port: ${port}`,
+    `  uuid: ${q(uuid)}`,
+    `  alterId: ${alterId}`,
+    `  cipher: ${q(String(config.scy ?? "auto"))}`,
+    `  tls: ${tls === "tls"}`,
+    "  udp: true",
+  ];
+  if (tls === "tls" && config.sni) {
+    extra.push(`  servername: ${q(String(config.sni))}`);
+  }
+  if (network === "ws") {
+    extra.push('  network: ws');
+    const wsPath = String(config.path ?? "/");
+    extra.push('  ws-opts:');
+    extra.push(`    path: ${q(wsPath)}`);
+    if (config.host) {
+      extra.push('    headers:');
+      extra.push(`      Host: ${q(String(config.host))}`);
+    }
+  }
+  return [...lines.slice(0, end), ...extra, "", ...lines.slice(end)].join("\n");
+}
+
+
+// ============================================================
 // 重建 proxy-groups
 //
 // JMS 主组：
@@ -516,6 +600,7 @@ function rebuildProxyGroups(
     // 新导入时优先自动故障切换
 
     '  - "🔄 自动故障切换"',
+    '  - "🇺🇸 美国备用 VMess"',
 
 
     // 手动节点
